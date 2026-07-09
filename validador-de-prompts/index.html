@@ -104,6 +104,9 @@
   .ai-eval-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
   .ai-eval-head h2{font-family:var(--disp);font-size:16px;font-weight:700}
   .ai-eval-sub{font-size:12.5px;color:var(--ink-soft);margin-top:4px;max-width:440px}
+  .ai-eval-actions{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+  .btn-link{background:none;border:none;padding:2px;font-size:11.5px;color:var(--ink-soft);text-decoration:underline;cursor:pointer}
+  .btn-link:hover{color:var(--coral-dark)}
 
   .ai-config{margin-top:14px;background:var(--coral-tint);border:1.5px solid var(--coral);border-radius:12px;padding:14px 16px;font-size:12.5px;color:var(--coral-dark)}
   .ai-config.hidden{display:none}
@@ -176,11 +179,14 @@ Ejemplo: Redacta un mensaje de WhatsApp para confirmar la sesión del jueves con
           <h2>Evaluación profunda con IA</h2>
           <p class="ai-eval-sub">El chequeo de arriba es instantáneo y local. Este además usa Claude para leer tu prompt de verdad y darte feedback razonado.</p>
         </div>
-        <button class="btn-navy" id="btnAiEval" type="button">Evaluar con IA (Claude)</button>
+        <div class="ai-eval-actions">
+          <button class="btn-navy" id="btnAiEval" type="button">Evaluar con IA (Claude)</button>
+          <button class="btn-link" id="btnEditProxy" type="button">⚙ cambiar URL del proxy</button>
+        </div>
       </div>
 
       <div class="ai-config" id="aiConfig">
-        <p>Primera vez: pega aquí la URL de tu proxy en Vercel (queda guardada solo en este navegador).</p>
+        <p>Pega aquí la URL de tu proxy en Vercel (queda guardada solo en este navegador). Usa el dominio estable del proyecto, no la URL de un deploy específico.</p>
         <div class="ai-config-row">
           <input type="text" id="proxyUrlInput" placeholder="https://tu-proxy.vercel.app/api/evaluate" autocomplete="off" spellcheck="false">
           <button class="btn-primary" id="saveProxyUrl" type="button">Guardar</button>
@@ -427,6 +433,10 @@ Máximo 60 palabras, tono cercano pero profesional, termina con una pregunta dir
   });
 
   // ---------- evaluación profunda con IA (vía proxy propio en Vercel) ----------
+  // URL del proxy ya desplegado para todo el equipo. Si algún día cambias de proxy,
+  // actualiza este valor — o cada persona puede sobreescribirlo con el link "cambiar URL".
+  const DEFAULT_PROXY_URL = "https://validador-three.vercel.app/api/evaluate";
+
   const PROXY_KEY="validador_proxy_url";
   const aiConfig=$("aiConfig"), proxyInput=$("proxyUrlInput"), btnAiEval=$("btnAiEval"),
         aiResult=$("aiResult");
@@ -437,7 +447,7 @@ Máximo 60 palabras, tono cercano pero profesional, termina con una pregunta dir
     ejemplos:"Ejemplos (few-shot)", estructura:"Estructura"
   };
 
-  function getProxyUrl(){ return localStorage.getItem(PROXY_KEY) || ""; }
+  function getProxyUrl(){ return localStorage.getItem(PROXY_KEY) || DEFAULT_PROXY_URL; }
   function setProxyUrl(v){ localStorage.setItem(PROXY_KEY, v); }
 
   function refreshConfigVisibility(){
@@ -453,6 +463,13 @@ Máximo 60 palabras, tono cercano pero profesional, termina con una pregunta dir
     setProxyUrl(v);
     refreshConfigVisibility();
     showToast("Proxy guardado en este navegador ✓");
+  });
+
+  $("btnEditProxy").addEventListener("click", ()=>{
+    aiConfig.classList.remove("hidden");
+    proxyInput.value = getProxyUrl();
+    proxyInput.focus();
+    proxyInput.select();
   });
 
   function renderAiLoading(){
