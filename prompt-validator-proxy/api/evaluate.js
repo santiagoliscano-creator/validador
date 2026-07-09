@@ -132,7 +132,7 @@ module.exports = async (req, res) => {
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 1200,
+        max_tokens: 2200,
         system: SYSTEM_PROMPT,
         messages: [
           {
@@ -152,14 +152,29 @@ module.exports = async (req, res) => {
     const data = await anthropicRes.json();
     const textBlock = (data.content || []).find((b) => b.type === "text");
     const raw = textBlock ? textBlock.text : "";
+    const truncated = data.stop_reason === "max_tokens";
 
     let parsed;
     try {
-      const cleaned = raw.trim().replace(/^```json\s*/i, "").replace(/```\s*$/i, "");
+      // Intento 1: la respuesta debería ser JSON puro, solo se quitan fences de markdown si las agregó.
+      const cleaned = raw.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "");
       parsed = JSON.parse(cleaned);
     } catch {
-      res.status(502).json({ error: "La respuesta del modelo no pudo interpretarse como JSON.", raw: raw.slice(0, 500) });
-      return;
+      try {
+        // Intento 2: por si el modelo agregó alguna frase antes/después, se extrae solo el bloque { ... }.
+        const start = raw.indexOf("{");
+        const end = raw.lastIndexOf("}");
+        if (start === -1 || end === -1 || end <= start) throw new Error("sin llaves");
+        parsed = JSON.parse(raw.slice(start, end + 1));
+      } catch {
+        res.status(502).json({
+          error: truncated
+            ? "La respuesta de Claude se cortó por límite de tokens antes de terminar el JSON."
+            : "La respuesta del modelo no pudo interpretarse como JSON.",
+          raw: raw.slice(0, 500),
+        });
+        return;
+      }
     }
 
     res.status(200).json(parsed);
