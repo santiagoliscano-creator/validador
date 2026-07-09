@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Validador de Prompts · Laboratorio del equipo</title>
+<meta name="description" content="Pega tu prompt y recibe un diagnóstico instantáneo: puntaje, ingredientes que faltan y sugerencias concretas para mejorarlo.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0d0d0d;
+    --ink-soft:#5a5a55;
+    --paper:#f2f1ec;         /* crema Hotmart */
+    --card:#ffffff;
+    --line:#0d0d0d;          /* bordes delineados finos */
+    --coral:#ff4b13;         /* naranja Hotmart */
+    --coral-dark:#d93a0a;
+    --coral-tint:#ffe9e1;
+    --navy:#0d0d0d;          /* panel oscuro = slide negra */
+    --gold:#ffb38a;
+    --green:#2e9e5b;
+    --green-tint:#e9f6ef;
+    --amber-tint:#fff3ec;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:'Sora',system-ui,-apple-system,Segoe UI,sans-serif;
+    --disp:'Sora',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{font-family:var(--sans);background:var(--paper);color:var(--ink);line-height:1.55;-webkit-font-smoothing:antialiased}
+  a{color:var(--coral-dark)}
+  :focus-visible{outline:3px solid var(--coral);outline-offset:2px;border-radius:4px}
+
+  header{max-width:1120px;margin:0 auto;padding:36px 24px 10px;display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .brand{font-family:var(--disp);font-weight:800;font-size:clamp(26px,4vw,40px);letter-spacing:-0.02em;line-height:1.15}
+  .brand em{font-style:normal;color:#fff;background:var(--coral);padding:0 10px;display:inline-block}
+  .tagline{color:var(--ink-soft);font-size:14px;max-width:440px;margin-top:8px}
+
+  main{max-width:1120px;margin:0 auto;padding:18px 24px 60px;display:grid;grid-template-columns:1.15fr .85fr;gap:26px;align-items:start}
+  @media(max-width:880px){main{grid-template-columns:1fr}}
+
+  /* ---------- mesa de trabajo ---------- */
+  .bench{background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:22px}
+  .bench-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+  .bench-head h2{font-family:var(--disp);font-size:17px;font-weight:700}
+  .counter{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+  textarea{width:100%;min-height:300px;resize:vertical;border:1.5px solid var(--line);border-radius:10px;padding:16px;font-family:var(--mono);font-size:14px;line-height:1.6;color:var(--ink);background:#fdfdfc;transition:border-color .15s}
+  textarea:focus{border-color:var(--coral);outline:none}
+  textarea::placeholder{color:#a3a29b}
+
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  button{font-family:var(--sans);font-weight:600;font-size:13px;border-radius:999px;padding:10px 18px;cursor:pointer;border:1.5px solid var(--ink);transition:transform .08s,background .15s,color .15s}
+  button:active{transform:scale(.97)}
+  .btn-ghost{background:#fff;color:var(--ink)}
+  .btn-ghost:hover{background:var(--coral-tint);border-color:var(--coral);color:var(--coral-dark)}
+  .btn-primary{background:var(--coral);border-color:var(--coral);color:#fff}
+  .btn-primary:hover{background:var(--coral-dark);border-color:var(--coral-dark)}
+  .btn-navy{background:var(--ink);border-color:var(--ink);color:#fff}
+  .btn-navy:hover{background:#2a2a26}
+
+  .vague{margin-top:14px;font-size:13px;color:var(--ink-soft);display:none}
+  .vague.show{display:block}
+  .vague strong{color:var(--coral-dark)}
+  .vague code{font-family:var(--mono);background:var(--coral-tint);border-radius:5px;padding:1px 6px;margin:0 2px;font-size:12px;color:var(--coral-dark)}
+
+  /* ---------- panel de puntaje (slide negra Hotmart) ---------- */
+  .scoreboard{background:var(--navy);color:#fff;border-radius:14px;padding:24px;position:sticky;top:18px}
+  .score-top{display:flex;align-items:flex-end;gap:18px}
+  .score-num{font-family:var(--disp);font-weight:800;font-size:76px;line-height:.9;letter-spacing:-0.03em;min-width:2ch;color:var(--coral)}
+  .score-max{font-family:var(--mono);font-size:13px;color:#8a8a85;padding-bottom:10px}
+  .score-level{margin-top:8px;font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;font-weight:500}
+  .score-msg{margin-top:10px;font-size:13px;color:#c9c7c0;min-height:42px}
+
+  .segments{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:18px}
+  .seg{height:9px;border-radius:5px;background:#33332f;transition:background .3s}
+  .seg.on{background:var(--coral)}
+  .seg.half{background:#f2f1ec}
+  .seg-label{margin-top:8px;font-size:11px;color:#8a8a85;text-align:center}
+
+  /* ---------- criterios ---------- */
+  .criteria{margin-top:20px;display:flex;flex-direction:column;gap:10px}
+  details.crit{background:var(--card);border:1.5px solid var(--line);border-radius:12px;overflow:hidden}
+  details.crit summary{list-style:none;display:flex;align-items:center;gap:12px;padding:13px 16px;cursor:pointer;font-weight:600;font-size:13.5px}
+  details.crit summary::-webkit-details-marker{display:none}
+  .dot{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;color:#fff;flex:none;font-weight:700}
+  .dot.ok{background:var(--green)} .dot.half{background:var(--coral)} .dot.no{background:#c6c4bc}
+  .crit-pts{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--ink-soft);flex:none}
+  .crit-body{padding:0 16px 15px 50px;font-size:13px;color:var(--ink-soft)}
+  .crit-body .fix{margin-top:8px;background:var(--coral-tint);border-radius:8px;padding:9px 12px;color:var(--coral-dark);font-size:12.5px}
+  .crit-body .fix code{font-family:var(--mono);font-size:12px}
+  details.crit.ok .crit-body .fix{background:var(--green-tint);color:var(--green)}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--ink);color:#fff;padding:12px 20px;border-radius:999px;font-size:14px;opacity:0;transition:all .3s;pointer-events:none;max-width:90vw}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  footer{max-width:1120px;margin:0 auto;padding:0 24px 48px;color:var(--ink-soft);font-size:13px}
+  footer .formula{font-family:var(--mono);font-size:12.5px;background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:14px 18px;color:var(--ink)}
+  footer .formula b{color:#fff;background:var(--coral);padding:0 5px}
+
+  /* ---------- evaluación con IA real ---------- */
+  .ai-eval-block{margin-top:22px;padding-top:20px;border-top:1.5px dashed var(--line)}
+  .ai-eval-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+  .ai-eval-head h2{font-family:var(--disp);font-size:16px;font-weight:700}
+  .ai-eval-sub{font-size:12.5px;color:var(--ink-soft);margin-top:4px;max-width:440px}
+
+  .ai-config{margin-top:14px;background:var(--coral-tint);border:1.5px solid var(--coral);border-radius:12px;padding:14px 16px;font-size:12.5px;color:var(--coral-dark)}
+  .ai-config.hidden{display:none}
+  .ai-config-row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+  .ai-config-row input{flex:1;min-width:220px;border:1.5px solid var(--ink);border-radius:8px;padding:9px 12px;font-family:var(--mono);font-size:12.5px;background:#fff;color:var(--ink)}
+  .ai-config-row input:focus{outline:none;border-color:var(--coral)}
+  .ai-config-hint{margin-top:8px;color:var(--ink-soft)}
+  .ai-config-hint code{font-family:var(--mono);background:#fff;border-radius:4px;padding:1px 5px}
+
+  .ai-result{margin-top:16px}
+  .ai-result.hidden{display:none}
+  .ai-loading{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-soft);padding:14px 0}
+  .spinner{width:16px;height:16px;border-radius:50%;border:2.5px solid var(--line);border-top-color:var(--coral);animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .ai-score-row{display:flex;align-items:center;gap:16px;background:var(--navy);border-radius:12px;padding:16px 18px;color:#fff}
+  .ai-score-num{font-family:var(--disp);font-weight:800;font-size:44px;color:var(--coral);line-height:1}
+  .ai-score-level{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#c9c7c0}
+
+  .ai-crit-list{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+  .ai-crit{display:flex;gap:10px;align-items:flex-start;background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px}
+  .ai-crit .dot{flex:none;margin-top:1px}
+  .ai-crit b{font-size:12.5px}
+  .ai-crit p{font-size:12px;color:var(--ink-soft);margin-top:2px}
+
+  .ai-mejoras{margin-top:16px;background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:12px 14px}
+  .ai-mejoras h3{font-size:12.5px;font-weight:700;margin-bottom:6px}
+  .ai-mejoras ol{padding-left:18px;font-size:12.5px;color:var(--ink-soft)}
+  .ai-mejoras li{margin-bottom:3px}
+
+  .ai-rewrite{margin-top:14px}
+  .ai-rewrite h3{font-size:12.5px;font-weight:700;margin-bottom:6px}
+  .ai-rewrite-box{background:#fff;border:1.5px solid var(--coral);border-radius:10px;padding:12px 14px;font-family:var(--mono);font-size:11.5px;white-space:pre-wrap;color:var(--ink);max-height:260px;overflow:auto}
+  .ai-rewrite-actions{margin-top:8px}
+
+  .ai-error{background:#fff;border:1.5px solid #c0392b;border-radius:10px;padding:12px 14px;font-size:12.5px;color:#c0392b}
+
+  @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1 class="brand">Validador <em>de Prompts</em></h1>
+    <p class="tagline">Pega tu prompt, mira qué ingredientes le faltan y súbelo a nivel pro antes de enviarlo.</p>
+  </div>
+</header>
+
+<main>
+  <!-- Mesa de trabajo -->
+  <section class="bench" aria-label="Editor de prompt">
+    <div class="bench-head">
+      <h2>Tu prompt</h2>
+      <span class="counter" id="counter">0 palabras</span>
+    </div>
+    <textarea id="prompt" spellcheck="false" placeholder="Escribe o pega aquí el prompt que le enviarías a la IA…
+
+Ejemplo: Redacta un mensaje de WhatsApp para confirmar la sesión del jueves con mi cliente…"></textarea>
+    <div class="toolbar">
+      <button class="btn-ghost" id="loadBad" type="button">Cargar ejemplo básico</button>
+      <button class="btn-ghost" id="loadGood" type="button">Cargar ejemplo pro</button>
+      <button class="btn-primary" id="copyPrompt" type="button">Copiar mi prompt</button>
+    </div>
+    <p class="vague" id="vagueBox"><strong>Palabras vagas detectadas:</strong> <span id="vagueWords"></span> — reemplázalas por datos concretos (números, nombres, criterios).</p>
+
+    <div class="ai-eval-block">
+      <div class="ai-eval-head">
+        <div>
+          <h2>Evaluación profunda con IA</h2>
+          <p class="ai-eval-sub">El chequeo de arriba es instantáneo y local. Este además usa Claude para leer tu prompt de verdad y darte feedback razonado.</p>
+        </div>
+        <button class="btn-navy" id="btnAiEval" type="button">Evaluar con IA (Claude)</button>
+      </div>
+
+      <div class="ai-config" id="aiConfig">
+        <p>Primera vez: pega aquí la URL de tu proxy en Vercel (queda guardada solo en este navegador).</p>
+        <div class="ai-config-row">
+          <input type="text" id="proxyUrlInput" placeholder="https://tu-proxy.vercel.app/api/evaluate" autocomplete="off" spellcheck="false">
+          <button class="btn-primary" id="saveProxyUrl" type="button">Guardar</button>
+        </div>
+        <p class="ai-config-hint">¿No tienes el proxy todavía? Pide al equipo la URL, o revisa el README del proyecto <code>prompt-validator-proxy</code> para desplegar el tuyo en 5 minutos.</p>
+      </div>
+
+      <div id="aiResult" class="ai-result" hidden></div>
+    </div>
+  </section>
+
+  <!-- Panel de resultados -->
+  <aside aria-label="Resultado del análisis">
+    <div class="scoreboard">
+      <div class="score-top">
+        <span class="score-num" id="scoreNum">0</span>
+        <span class="score-max">/ 100</span>
+      </div>
+      <p class="score-level" id="scoreLevel" style="color:#8a8a85">Esperando tu prompt</p>
+      <p class="score-msg" id="scoreMsg">El análisis se actualiza en vivo mientras escribes.</p>
+      <div class="segments" id="segments" aria-hidden="true"></div>
+      <p class="seg-label">7 ingredientes · cada barra se enciende cuando lo detectamos</p>
+    </div>
+
+    <div class="criteria" id="criteria"></div>
+  </aside>
+</main>
+
+<footer>
+  <p style="margin-bottom:10px">La fórmula que evalúa esta herramienta (la misma de la capacitación):</p>
+  <p class="formula"><b>ROL</b> + <b>CONTEXTO</b> + <b>TAREA</b> + <b>FORMATO</b> + <b>EJEMPLOS</b> + estructura + especificidad</p>
+  <p style="margin-top:14px">Herramienta interna del equipo · El puntaje es una guía basada en reglas, no un juicio absoluto: úsala como checklist, y usa el meta-prompt para una evaluación profunda con Claude.</p>
+</footer>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- criterios y heurísticas ----------
+  const CRITERIA = [
+    {
+      id:"tarea", nombre:"Tarea clara", pts:20,
+      desc:"Un verbo de acción que diga exactamente qué producir.",
+      fix:"Empieza con un verbo: <code>Redacta…</code>, <code>Analiza…</code>, <code>Resume…</code>, <code>Compara…</code>",
+      ok:"Detectamos un verbo de acción claro. La IA sabe qué producir.",
+      test:t=>/\b(redacta|escribe|crea|genera|anali[zc]a|resume|resúme|traduce|clasifica|compara|explica|elabora|revisa|corrige|optimiza|lista|propon|propón|propone|diseña|calcula|extrae|identifica|eval[úu]a|construye|arma|prepara|convierte|transforma|mejora|reescribe|responde|sugiere|haz|hazme|dame|arma|prepara|write|create|summarize|draft|analyze|translate)\b/i.test(t)
+    },
+    {
+      id:"contexto", nombre:"Contexto y audiencia", pts:15,
+      desc:"Situación, cliente o audiencia: para quién y para qué es esto.",
+      fix:"Agrega una frase de situación: <code>Mi cliente es un productor de cursos de yoga que…</code> o <code>Esto es para un email dirigido a…</code>",
+      ok:"Hay contexto de la situación o audiencia. Respuestas más a la medida.",
+      test:t=>/\b(contexto|situaci[óo]n|mi cliente|el cliente|nuestro|audiencia|dirigido a|p[úu]blico|se trata de|antecedentes|trabajo (en|como)|somos|soy (un|una)|productor|empresa|equipo|estudiante|lector)\b/i.test(t) || (t.split(/\s+/).length>60 && /\b(para|porque|ya que|dado que)\b/i.test(t))
+    },
+    {
+      id:"especificidad", nombre:"Especificidad", pts:15,
+      desc:"Números, nombres, montos, plazos o criterios concretos.",
+      fix:"Cambia lo genérico por datos: <code>3 acciones</code>, <code>USD 97</code>, <code>máximo 80 palabras</code>, <code>para el jueves</code>.",
+      ok:"Hay datos concretos (números, cantidades o criterios). Menos ambigüedad.",
+      test:t=>{
+        const nums=(t.match(/\d+/g)||[]).length;
+        const crit=/\b(exactamente|espec[íi]ficamente|criterios?|requisitos?|debe (incluir|tener)|obligatorio)\b/i.test(t);
+        return nums>=2 || (nums>=1 && crit);
+      },
+      half:t=>(t.match(/\d+/g)||[]).length===1
+    },
+    {
+      id:"formato", nombre:"Formato de salida", pts:15,
+      desc:"Cómo quieres la respuesta: largo, tono, estructura, tipo de entrega.",
+      fix:"Cierra con instrucciones de salida: <code>Máximo 100 palabras, en viñetas, tono cercano</code> o <code>Entrega una tabla con 3 columnas</code>.",
+      ok:"Definiste cómo debe verse la respuesta (largo, tono o estructura).",
+      test:t=>/\b(formato|tabla|lista|viñetas|bullets|json|m[áa]ximo|m[íi]nimo|palabras|caracteres|p[áa]rrafos?|tono|estructura|encabezados|columnas|pasos|numerad[oa]s?|en (una|un) (tabla|lista|email|mensaje)|breve|corto|extenso|markdown)\b/i.test(t)
+    },
+    {
+      id:"ejemplos", nombre:"Ejemplos (few-shot)", pts:10,
+      desc:"Una muestra del resultado que esperas: tu estándar de calidad.",
+      fix:"Pega una muestra: <code>Siguiendo el estilo de este ejemplo: «…»</code>. Un ejemplo vale más que tres párrafos de explicación.",
+      ok:"Incluiste al menos un ejemplo. La IA copiará tu estándar.",
+      test:t=>/(por ejemplo|ejemplos?\s*:|<ejemplo|como este:|as[íi]:|siguiendo el estilo|similar a este|una muestra|e\.g\.|«|")/i.test(t) && t.split(/\s+/).length>25
+    },
+    {
+      id:"estructura", nombre:"Estructura", pts:15,
+      desc:"Secciones separadas (etiquetas, listas o párrafos) para no mezclar datos con instrucciones.",
+      fix:"Separa con etiquetas o numeración:<br><code>&lt;contexto&gt;…&lt;/contexto&gt;</code><br><code>&lt;tarea&gt; 1. … 2. … &lt;/tarea&gt;</code>",
+      ok:"El prompt está organizado en secciones. Nada se mezcla.",
+      test:t=>/<[a-záéíóúñ_]{2,}>/i.test(t) || /^\s*\d+[\.\)]\s/m.test(t) || (t.match(/\n\s*\n/g)||[]).length>=2 || /^\s*[-•]\s/m.test(t)
+    },
+    {
+      id:"rol", nombre:"Rol definido", pts:10,
+      desc:"Un sombrero para la IA: experto, estratega, editor, profesor…",
+      fix:"Abre con un rol: <code>Actúa como un estratega de lanzamientos digitales con 10 años de experiencia…</code>",
+      ok:"Le diste un rol a la IA. Eso orienta el tono y el nivel de la respuesta.",
+      test:t=>/\b(act[úu]a como|eres (un|una)|asume el rol|tu rol es|como (un|una) (expert[oa]|especialista|profesional)|comp[óo]rtate como|imagina que eres|you are a|act as)\b/i.test(t)
+    }
+  ];
+
+  const VAGUE = ["algo","cosas","cosa","etc","etcétera","bonito","bonita","lindo","linda","bueno para","lo mejor posible","lo que sea","interesante","llamativo","épico","epico","chévere","chevere","cool","genial","padre","increíble","increible"];
+
+  const LEVELS = [
+    {min:85, name:"NIVEL PRO", color:"#6fe09a", msg:"Prompt de nivel profesional. Envíalo con confianza — y guárdalo en la biblioteca del equipo."},
+    {min:65, name:"SÓLIDO", color:"#f2f1ec", msg:"Buen prompt. Revisa abajo el ingrediente que falta para pasar a nivel pro."},
+    {min:40, name:"EN CONSTRUCCIÓN", color:"#ffb38a", msg:"Va tomando forma. Abre los criterios en gris y agrega 2 o 3 ingredientes más."},
+    {min:1,  name:"BORRADOR", color:"#ff7a52", msg:"Es un punto de partida. La IA va a responder algo genérico: dale contexto, especificidad y formato."},
+    {min:0,  name:"ESPERANDO TU PROMPT", color:"#8a8a85", msg:"El análisis se actualiza en vivo mientras escribes."}
+  ];
+
+  const EX_BAD = "Hazme un mensaje para un cliente sobre su lanzamiento, que quede bonito.";
+  const EX_GOOD = `Actúa como un Customer Success Analyst experto en lanzamientos digitales.
+
+<contexto>
+Mi cliente es un productor que vende un curso de finanzas de USD 147. Su lanzamiento abre el lunes y todavía no confirma la sesión de estrategia que agendamos para este jueves a las 10 am.
+</contexto>
+
+<tarea>
+Redacta un mensaje de WhatsApp para que confirme la sesión hoy mismo.
+</tarea>
+
+<formato>
+Máximo 60 palabras, tono cercano pero profesional, termina con una pregunta directa.
+</formato>
+
+<ejemplo>
+"¡Hola, Ana! Tu lanzamiento está a la vuelta de la esquina 🚀 Para llegar con todo listo necesitamos la sesión del jueves. ¿Me confirmas 10 am?"
+</ejemplo>`;
+
+  // ---------- referencias DOM ----------
+  const $ = id=>document.getElementById(id);
+  const ta=$("prompt"), scoreNum=$("scoreNum"), scoreLevel=$("scoreLevel"),
+        scoreMsg=$("scoreMsg"), segWrap=$("segments"), critWrap=$("criteria"),
+        counter=$("counter"), vagueBox=$("vagueBox"), vagueWords=$("vagueWords"),
+        toast=$("toast");
+
+  // construir segmentos y tarjetas
+  CRITERIA.forEach(c=>{
+    const seg=document.createElement("div");
+    seg.className="seg"; seg.id="seg-"+c.id;
+    segWrap.appendChild(seg);
+
+    const d=document.createElement("details");
+    d.className="crit"; d.id="crit-"+c.id;
+    d.innerHTML=`
+      <summary>
+        <span class="dot no" id="dot-${c.id}">·</span>
+        <span>${c.nombre}</span>
+        <span class="crit-pts" id="pts-${c.id}">0/${c.pts}</span>
+      </summary>
+      <div class="crit-body">
+        <p>${c.desc}</p>
+        <p class="fix" id="fix-${c.id}"></p>
+      </div>`;
+    critWrap.appendChild(d);
+  });
+
+  let lastScore=0;
+
+  function analyze(){
+    const t=ta.value;
+    const words=t.trim()? t.trim().split(/\s+/).length : 0;
+    counter.textContent = words + (words===1?" palabra":" palabras");
+
+    let score=0;
+    const tooShort = words>0 && words<8;
+
+    CRITERIA.forEach(c=>{
+      const passed = words>0 && c.test(t);
+      const half = !passed && c.half && words>0 && c.half(t);
+      let got = passed? c.pts : half? Math.round(c.pts/2) : 0;
+      if(tooShort) got=Math.min(got, Math.round(c.pts/2));
+      score+=got;
+
+      const dot=$("dot-"+c.id), seg=$("seg-"+c.id), pts=$("pts-"+c.id),
+            fix=$("fix-"+c.id), card=$("crit-"+c.id);
+      dot.className="dot "+(passed?"ok":half?"half":"no");
+      dot.textContent = passed?"✓":half?"~":"·";
+      seg.className="seg "+(passed?"on":half?"half":"");
+      pts.textContent = got+"/"+c.pts;
+      card.classList.toggle("ok",passed);
+      fix.innerHTML = passed? c.ok : c.fix;
+    });
+
+    // penalización por palabras vagas
+    const lower=" "+t.toLowerCase()+" ";
+    const found=VAGUE.filter(v=>lower.includes(" "+v+" ")||lower.includes(" "+v+",")||lower.includes(" "+v+"."));
+    if(found.length){
+      score=Math.max(0,score-Math.min(10,found.length*3));
+      vagueWords.innerHTML=found.map(f=>"<code>"+f+"</code>").join(" ");
+      vagueBox.classList.add("show");
+    } else vagueBox.classList.remove("show");
+
+    if(words===0) score=0;
+    score=Math.max(0,Math.min(100,score));
+
+    // animar número
+    animateScore(lastScore,score);
+    lastScore=score;
+
+    const lvl = words===0? LEVELS[4] : LEVELS.find(l=>score>=l.min && l.min>0) || LEVELS[3];
+    const shown = words===0? LEVELS[4] : (score>=85?LEVELS[0]:score>=65?LEVELS[1]:score>=40?LEVELS[2]:LEVELS[3]);
+    scoreLevel.textContent=shown.name;
+    scoreLevel.style.color=shown.color;
+    scoreMsg.textContent= tooShort? "El prompt es muy corto: con menos de 8 palabras la IA solo puede adivinar." : shown.msg;
+  }
+
+  const reduced=matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let raf;
+  function animateScore(from,to){
+    if(reduced||from===to){scoreNum.textContent=to;return;}
+    cancelAnimationFrame(raf);
+    const start=performance.now(), dur=350;
+    function tick(now){
+      const p=Math.min(1,(now-start)/dur);
+      scoreNum.textContent=Math.round(from+(to-from)*(1-Math.pow(1-p,3)));
+      if(p<1) raf=requestAnimationFrame(tick);
+    }
+    raf=requestAnimationFrame(tick);
+  }
+
+  let deb;
+  ta.addEventListener("input",()=>{clearTimeout(deb);deb=setTimeout(analyze,180);});
+
+  // ---------- botones ----------
+  function showToast(msg){
+    toast.textContent=msg; toast.classList.add("show");
+    setTimeout(()=>toast.classList.remove("show"),2200);
+  }
+  async function copy(text,okMsg){
+    try{ await navigator.clipboard.writeText(text); showToast(okMsg); }
+    catch(e){
+      const tmp=document.createElement("textarea");
+      tmp.value=text; document.body.appendChild(tmp); tmp.select();
+      try{ document.execCommand("copy"); showToast(okMsg); }
+      catch(err){ showToast("No se pudo copiar. Selecciona y copia manualmente."); }
+      document.body.removeChild(tmp);
+    }
+  }
+
+  $("loadBad").addEventListener("click",()=>{ta.value=EX_BAD;analyze();ta.focus();});
+  $("loadGood").addEventListener("click",()=>{ta.value=EX_GOOD;analyze();ta.focus();});
+  $("copyPrompt").addEventListener("click",()=>{
+    if(!ta.value.trim()) return showToast("Primero escribe un prompt 😉");
+    copy(ta.value,"Prompt copiado al portapapeles ✓");
+  });
+
+  // ---------- evaluación profunda con IA (vía proxy propio en Vercel) ----------
+  const PROXY_KEY="validador_proxy_url";
+  const aiConfig=$("aiConfig"), proxyInput=$("proxyUrlInput"), btnAiEval=$("btnAiEval"),
+        aiResult=$("aiResult");
+
+  const CRIT_LABELS={
+    rol:"Rol definido", contexto:"Contexto y audiencia", tarea:"Tarea clara",
+    especificidad:"Especificidad", formato:"Formato de salida",
+    ejemplos:"Ejemplos (few-shot)", estructura:"Estructura"
+  };
+
+  function getProxyUrl(){ return localStorage.getItem(PROXY_KEY) || ""; }
+  function setProxyUrl(v){ localStorage.setItem(PROXY_KEY, v); }
+
+  function refreshConfigVisibility(){
+    aiConfig.classList.toggle("hidden", !!getProxyUrl());
+  }
+  refreshConfigVisibility();
+  proxyInput.value = getProxyUrl();
+
+  $("saveProxyUrl").addEventListener("click", ()=>{
+    const v = proxyInput.value.trim();
+    if(!v){ return showToast("Pega primero la URL de tu proxy"); }
+    if(!/^https?:\/\//i.test(v)){ return showToast("La URL debe empezar con https://"); }
+    setProxyUrl(v);
+    refreshConfigVisibility();
+    showToast("Proxy guardado en este navegador ✓");
+  });
+
+  function renderAiLoading(){
+    aiResult.hidden=false;
+    aiResult.innerHTML = `<div class="ai-loading"><span class="spinner" aria-hidden="true"></span> Consultando a Claude, esto toma unos segundos…</div>`;
+  }
+
+  function renderAiError(msg){
+    aiResult.hidden=false;
+    aiResult.innerHTML = `<div class="ai-error"><strong>No se pudo completar la evaluación.</strong><br>${msg}</div>`;
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  }
+
+  function renderAiResult(data){
+    aiResult.hidden=false;
+    const critHtml = (data.criteria||[]).map(c=>{
+      const label = CRIT_LABELS[c.id] || c.id;
+      const dotClass = c.estado==="cumple" ? "ok" : c.estado==="parcial" ? "half" : "no";
+      const dotChar = c.estado==="cumple" ? "✓" : c.estado==="parcial" ? "~" : "·";
+      return `<div class="ai-crit">
+        <span class="dot ${dotClass}">${dotChar}</span>
+        <div><b>${escapeHtml(label)}</b><p>${escapeHtml(c.comentario||"")}</p></div>
+      </div>`;
+    }).join("");
+
+    const mejorasHtml = (data.mejoras||[]).map(m=>`<li>${escapeHtml(m)}</li>`).join("");
+
+    aiResult.innerHTML = `
+      <div class="ai-score-row">
+        <div class="ai-score-num">${Number(data.score)||0}</div>
+        <div>
+          <div class="ai-score-level">${escapeHtml(data.level||"")}</div>
+          <div style="font-size:12px;color:#c9c7c0;margin-top:2px">Evaluado por Claude, no por reglas fijas</div>
+        </div>
+      </div>
+      <div class="ai-crit-list">${critHtml}</div>
+      ${mejorasHtml ? `<div class="ai-mejoras"><h3>Top 3 mejoras</h3><ol>${mejorasHtml}</ol></div>` : ""}
+      ${data.prompt_mejorado ? `
+        <div class="ai-rewrite">
+          <h3>Versión reescrita sugerida</h3>
+          <div class="ai-rewrite-box">${escapeHtml(data.prompt_mejorado)}</div>
+          <div class="ai-rewrite-actions">
+            <button class="btn-primary" id="btnCopyRewrite" type="button">Copiar versión mejorada</button>
+          </div>
+        </div>` : ""}
+    `;
+
+    const btnCopy = document.getElementById("btnCopyRewrite");
+    if(btnCopy){
+      btnCopy.addEventListener("click", ()=> copy(data.prompt_mejorado, "Versión mejorada copiada ✓"));
+    }
+  }
+
+  btnAiEval.addEventListener("click", async ()=>{
+    if(!ta.value.trim()) return showToast("Primero escribe un prompt 😉");
+    const proxyUrl = getProxyUrl();
+    if(!proxyUrl){
+      aiConfig.classList.remove("hidden");
+      proxyInput.focus();
+      return showToast("Configura primero la URL de tu proxy");
+    }
+
+    btnAiEval.disabled = true;
+    const originalLabel = btnAiEval.textContent;
+    btnAiEval.textContent = "Evaluando…";
+    renderAiLoading();
+
+    const controller = new AbortController();
+    const timeout = setTimeout(()=>controller.abort(), 25000);
+
+    try{
+      const res = await fetch(proxyUrl, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ prompt: ta.value }),
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+
+      let data;
+      try{ data = await res.json(); }
+      catch{ throw new Error("El proxy no devolvió una respuesta válida."); }
+
+      if(!res.ok){
+        throw new Error(data && data.error ? data.error : `Error del servidor (${res.status}).`);
+      }
+      if(typeof data.score !== "number" || !Array.isArray(data.criteria)){
+        throw new Error("La respuesta no tiene el formato esperado.");
+      }
+
+      renderAiResult(data);
+    }catch(err){
+      clearTimeout(timeout);
+      const msg = err.name==="AbortError"
+        ? "Se agotó el tiempo de espera. Intenta de nuevo."
+        : escapeHtml(err.message || "Error de red o CORS. Revisa que ALLOWED_ORIGINS incluya este sitio.");
+      renderAiError(msg);
+    }finally{
+      btnAiEval.disabled = false;
+      btnAiEval.textContent = originalLabel;
+    }
+  });
+
+  analyze();
+})();
+</script>
+</body>
+</html>
