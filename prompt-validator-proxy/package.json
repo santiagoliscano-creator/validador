@@ -1,0 +1,9 @@
+{
+  "name": "prompt-validator-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Proxy seguro en Vercel que conecta el Validador de Prompts con la API de Claude sin exponer la API key.",
+  "engines": {
+    "node": ">=18"
+  }
+}
